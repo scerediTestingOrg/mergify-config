@@ -49,6 +49,17 @@ pull_request_rules:
       merge:
         method: squash
         merge_bot_account: sceredi-bot
+  - name: Request for review to the dev team
+    conditions:
+      - "#files > 0"
+      - and: &authors_are_not_bots
+        - '-author=renovate[bot]'
+        - '-author=dependabot[bot]'
+    actions:
+      request_reviews:
+        users_from_teams:
+          - "pps-team"
+        bot_account: sceredi-bot
   - name: Delete head branch after merge but not if other PRs depend on it
     conditions:
       - merged
