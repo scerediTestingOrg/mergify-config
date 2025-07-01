@@ -1,52 +1,89 @@
 pull_request_rules:
-
-  - name: Auto-update with merge if appropriately labeled
+  - name: Ping PR author when conflicting
+    description: Warn the pull request author when their PR are conflicting
     conditions:
-      - label=auto-update-merge
-      - -draft
-      - -conflict
+      - conflict
+      - '-closed'
     actions:
-      update:
+      comment:
         bot_account: sceredi-bot
-
-  - name: rebase-merge working updates
+        message: >
+          👋 @{{author}} your PR is conflicting and needs to be updated to be merged 😉
+  - name: Ping PR author when title does not follow conventional commits
+    description: Warn the pull request author when their PR title does not follow conventional commits
+    conditions:
+      - '-title ~= ^(fix|feat|docs|style|refactor|perf|test|build|ci|chore|revert)(?:(.+))?:'
+    actions:
+      comment:
+        bot_account: sceredi-bot
+        message: >
+          👋 @{{author}} your PR title does not follow conventional commits guidelines.
+          ⚠️ If squashed, the new commit won't be complaint with those conventions (please, refer to https://www.conventionalcommits.org/). If you are planning to rebase or merge this you can ignore this message.
+  - name: Automatic rebase when CI passes and approved
+    conditions:
+      - or: &approval_requirements
+        - '#approved-reviews-by>=2'
+        - and:
+            - '#approved-reviews-by=1'
+            - updated-at <= 4 hours ago
+      - label=rebase
+    actions:
+      merge:
+        method: rebase
+        merge_ bot_account: sceredi-bot
+  - name: Automatic squash when CI passes and approved
+    conditions:
+      - or: *approval_requirements
+      - label=squash
+    actions:
+      merge:
+        method: squash
+        merge_bot_account: sceredi-bot
+  - name: Automatic rebase dependencies bots working PRs
     conditions:
       - and:
         - or: &authors_are_bots
           - author=renovate[bot]
           - author=dependabot[bot]
-        - and:
-          - or:
-            - check-success~=.*success
-          - "#review-threads-unresolved=0"
-          - "#commits-behind=0"
-      - label=dependencies
-      - -draft
-      - -conflict
     actions:
       merge:
-        method: rebase
-
-  - name: ask to resolve conflict
+        method: squash
+        merge_bot_account: sceredi-bot
+  - name: Request for review to the dev team
     conditions:
-      - conflict
+      - "#files > 0"
+      - and: &authors_are_not_bots
+        - '-author=renovate[bot]'
+        - '-author=dependabot[bot]'
     actions:
-      comment:
-        message: |
-          Hi @{{author}}! :wave:
-          This pull request has conflicts :confounded:
-          Could you fix it? :wrench:
-          Thank you! :pray:
-
-  - name: Auto-rebase if appropriately labeled or if the author is an authorized bot
-    conditions:
-      - or:
-        - label=auto-update-rebase
-        - and:
-            - label=dependencies
-            - or: *authors_are_bots
-      - -draft
-      - -conflict
-    actions:
-      rebase:
+      request_reviews:
+        users_from_teams:
+          - "PPS-Team"
         bot_account: sceredi-bot
+  - name: Delete head branch after merge but not if other PRs depend on it
+    conditions:
+      - merged
+    actions:
+      delete_head_branch:
+        force: false
+
+merge_protections:
+  - name: Development merge requirements
+    description: Requirements to be met before merging to the main branch an increment
+    if:
+      - base=main
+      - and: *authors_are_not_bots
+    success_conditions:
+      - check-success~=.*success
+      - '#review-threads-unresolved=0'
+      - '-conflict'
+      - '-draft'
+  - name: Bots merge requirements
+    description: Requirements to be met by bots
+    if:
+      - or: *authors_are_bots
+    success_conditions:
+      - check-success~=.*success
+      - '#review-threads-unresolved=0'
+      - "#commits-behind=0"
+      - '-draft'
