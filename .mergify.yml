@@ -80,6 +80,11 @@ merge_protections:
       - '#review-threads-unresolved=0'
       - '-conflict'
       - '-draft'
+      - or: &approval_requirements
+        - '#approved-reviews-by>=2'
+        - and:
+            - '#approved-reviews-by=1'
+            - updated-at <= 4 hours ago
   - name: Bots merge requirements
     description: Requirements to be met by bots
     if:
